@@ -99,7 +99,10 @@ void print_contents(uint8_t* data, size_t size) {
         char identifier[17];
         identifier[16] = '\0';
         memmove(identifier, data, 16);
-        if (strlen(identifier) != 16) break; 
+        //if (strlen(identifier) != 16){
+        //   printf("%d\n", (int)strlen(identifier));
+        //    return;
+       // }
         // Find the backslash and change to null terminating character
         char* endChar = strchr(identifier, '/');
         *endChar = '\0';

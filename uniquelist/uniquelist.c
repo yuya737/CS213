@@ -1,5 +1,4 @@
 #include "uniquelist.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -12,25 +11,22 @@ void uniquelist_init(uniquelist_t *s)
 /// Destroy a uniquelist
 void uniquelist_destroy(uniquelist_t *s)
 {
-  // TODO: implement me
   node_t *current = s->root;
-  node_t *next = s->root;
+  node_t *prevNode;
 
-  while (next != NULL)
+  // Traverse through linked list, keeping a pointer to the previous node and freeing appropriately
+  while (current != NULL)
   {
-    next = current->next;
-    //free(current);
-    current = next;
+    prevNode = current;
+    current = current->next;
+    free(prevNode);
   }
-  //free(s);
 }
 
 /// Add an element to a uniquelist, unless it's already in the uniquelist
 void uniquelist_insert(uniquelist_t *s, int n)
 {
-  // TODO: implement me
-
-  if (s->root == NULL)
+  if (s->root == NULL) // If the root is NULL, we have an empty linkedlist so make a new entry
   {
     s->root = (node_t *)malloc(sizeof(node_t));
     s->root->data = n;
@@ -40,9 +36,9 @@ void uniquelist_insert(uniquelist_t *s, int n)
   {
     node_t *current = s->root;
 
-    while (current->data != n)
+    while (current->data != n) // Traverse until we find an entry with the same number
     {
-      if (current->next == NULL)
+      if (current->next == NULL) // If we reach the end of the list, we add an entry at the end
       {
         node_t *newNode = (node_t *)malloc(sizeof(node_t));
         newNode->data = n;
@@ -55,20 +51,24 @@ void uniquelist_insert(uniquelist_t *s, int n)
         current = current->next;
       }
     }
-    return;
+    return; // If we find a matching entry, return
   }
 }
 
 /// Print all the numbers in a uniquelist
 void uniquelist_print_all(uniquelist_t *s)
 {
-  // TODO: implement me
   node_t *current = s->root;
 
+  // With the copy of the head in hand, print the uniquelist by travsering to the end
   while (current != NULL)
   {
-    printf("%d ", current->data);
-    current = current->next;
+    if (current->next == NULL){ // If we are the last element, print the element and the newline character
+      printf("%d\n", current->data);
+      current = current->next;
+    } else{ // Otherwise, print a space after the element.
+      printf("%d ", current->data);
+      current = current->next;
+    }
   }
-  printf("\n");
 }

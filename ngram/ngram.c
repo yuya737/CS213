@@ -20,8 +20,8 @@ int main(int argc, char** argv) {
   
   // TODO: read from standard input and print out ngrams until we reach the end of the input
 
-  char string[N]; // char array to store current string to print
-  char nextString[N]; // char array to store the manipulated string
+  char string[N+1]; // char array to store current string to print
+  char nextString[N+1]; // char array to store the manipulated string
   char nextChar; // the next char to be read
 
 
@@ -32,8 +32,9 @@ int main(int argc, char** argv) {
       
       while ((nextChar = fgetc(stdin)) != EOF){ // while loop until the end of file
           puts(string); // print the current string
-          memmove(nextString, string+1, N); // move all characters but the first to nextString
+          memmove(nextString, string+1, N-1); // move all characters but the first to nextString
           memmove(nextString+N-1, &nextChar, 1); // append the current character to the end of nextString
+          nextString[N] = '\0';
           strcpy(string, nextString); // copy nextString to string
       }
       puts(string); // print the final string before exiting

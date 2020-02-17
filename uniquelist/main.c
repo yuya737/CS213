@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
   uniquelist_print_all(&nums);
   
   // Clean up
-  //uniquelist_destroy(&nums);
+  uniquelist_destroy(&nums);
   
   return 0;
 }
