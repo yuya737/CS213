@@ -12,4 +12,4 @@ obj/allocator.o: allocator.c
 	$(CC) $(CFLAGS) -c -o obj/allocator.o allocator.c
 
 myallocator.so: gnuwrapper.cpp obj/allocator.o wrapper.h
-	$(CXX) -shared $(CFLAGS) -o myallocator.so gnuwrapper.cpp obj/allocator.o
+	$(CXX) $(CFLAGS) -shared $(CFLAGS) -o myallocator.so gnuwrapper.cpp obj/allocator.o
