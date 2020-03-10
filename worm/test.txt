@@ -1,0 +1,28 @@
+kawakami@kilby:worm$ tests/test1
+I am task 1.
+I am task 2.
+All done!
+kawakami@kilby:worm$ tests/test2
+Task 1: Sleeping for two seconds
+Task 2: Sleeping for one second
+Task 1: Woke up
+Task 2: Woke up
+All done!
+kawakami@kilby:worm$ tests/test3
+Task 1 will print every two seconds.
+Task 1: Tick!
+Task 2 will print every 1.5 seconds.
+Task 2: Tock!
+Task 1: Tick!
+Task 2: Tock!
+Task 1: Tick!
+Task 2: Tock!
+Task 1: Tick!
+Task 2: Tock!
+Task 1: Tick!
+Task 2: Tock!
+Task 1: Finished.
+Task 2: Finished.
+All done!
+kawakami@kilby:worm$ tests/test4
+
