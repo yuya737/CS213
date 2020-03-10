@@ -16,6 +16,8 @@
 // This is the size of each task's stack memory
 #define STACK_SIZE 65536
 
+#define MAIN_TASK 0
+
 #define RUNNING 0
 #define READY 1
 #define ASLEEP 2
@@ -129,6 +131,7 @@ void task_wait(task_t handle) {
     tasks[current_task].state = BLOCKED_ON_WAIT;
     tasks[current_task].taskToWaitFor = handle;
     scheduler();
+    printf("exiting task_wait\n");
 }
 
 /**
@@ -166,6 +169,14 @@ void scheduler() {
     int c, i, executable = 0, exit_count = 0;
 
 AGAIN:
+    exit_count = 0;
+    executable = 0;
+    if (tasks[MAIN_TASK].state == BLOCKED_ON_INPUT){
+        if((c = getch()) != ERR){
+            tasks[MAIN_TASK].input = c;
+            tasks[MAIN_TASK].state = READY;
+        }
+    }
     // loop from the next task
     for(i = current_task+1; i < num_tasks + current_task; i++) {
         switch(tasks[i % num_tasks].state) {
@@ -212,9 +223,14 @@ AGAIN:
         if(executable) break;
     }
     // if not all tasks are exited, run this again
-    if(!executable && exit_count != num_tasks - 1) goto AGAIN;
+    if((!executable && exit_count != num_tasks - 1) || tasks[MAIN_TASK].state == BLOCKED_ON_INPUT) goto AGAIN;
+
+    if(exit_count == num_tasks - 1) {
+        return;
+    }
     // change current_task to the new task to be run and swap the context to new task
     task_t temp = current_task;
     current_task = i % num_tasks;
     swapcontext(&tasks[temp].context, &tasks[i % num_tasks].context);
+    return;
 }
