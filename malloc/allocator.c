@@ -144,7 +144,7 @@ void xxfree(void* ptr) {
 
     uintptr_t freeHeadAddress = (uintptr_t) ptr;
 
-    if (freeHeadAddress % blocksize == 0){ 
+    if (freeHeadAddress % blocksize != 0){ 
         freeHeadAddress = ROUND_UP((uintptr_t) ptr, blocksize) - blocksize;
     }
 
