@@ -12,21 +12,14 @@
 #define PAGE_SIZE 0x1000
 #define ROUND_UP(x,y) ((x) % (y) == 0 ? (x) : (x) + ((y) - (x) % (y)))
 
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-
-typedef struct thread_args {
-    char* file_data;
-    off_t file_size;
-} arg_t;
+pthread_mutex_t lock;
 
 /// The number of times we've seen each letter in the input, initially zero
 size_t letter_counts[26] = {0};
 
-void *thread_count(void* arguments){
-    char* file_data = ((arg_t*)arguments)->file_data;
-    off_t file_size = ((arg_t*)arguments)->file_size;
-    for(size_t i = 0; i < file_size; i++){
-        char c = file_data[i];
+void *thread_count(void* file_data){
+    for(size_t i = 0; i < strlen((char*) file_data); i++){
+        char c = ((char*)file_data)[i];
         if (c >= 'a' && c <= 'z'){
             int rc = pthread_mutex_lock(&lock);
             assert(rc == 0);
@@ -61,6 +54,7 @@ void count_letters(int num_threads, char* file_data, off_t file_size) {
 
     off_t roughCount = (off_t) file_size /  num_threads;
     off_t countSoFar = 0;
+    pthread_mutex_init(&lock, NULL);
 
     pthread_t threadList[num_threads];
     for (int i = 0; i < num_threads; i++){
@@ -70,13 +64,10 @@ void count_letters(int num_threads, char* file_data, off_t file_size) {
         } else {
             threadReadSize = roughCount;
         }
-        arg_t arguments; 
         char* temp  = file_data;
         temp = temp + countSoFar;
-        arguments.file_data = strndup(temp, threadReadSize);
-        arguments.file_size = threadReadSize;
-        printf("%s, %d\n", arguments.file_data, (int)arguments.file_size);
-        int rc = pthread_create(&threadList[i], NULL, thread_count, &arguments);
+        char* file_data = strndup(temp, threadReadSize);
+        int rc = pthread_create(&threadList[i], NULL, thread_count, (void*) file_data);
         assert(rc == 0);
         countSoFar = countSoFar + threadReadSize;
     }
@@ -84,7 +75,6 @@ void count_letters(int num_threads, char* file_data, off_t file_size) {
         int rc = pthread_join(threadList[i], NULL);
         assert(rc == 0);
     }
-
 }
 
 
