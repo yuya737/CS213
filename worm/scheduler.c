@@ -131,7 +131,6 @@ void task_wait(task_t handle) {
     tasks[current_task].state = BLOCKED_ON_WAIT;
     tasks[current_task].taskToWaitFor = handle;
     scheduler();
-    printf("exiting task_wait\n");
 }
 
 /**
