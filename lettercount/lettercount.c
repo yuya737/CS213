@@ -12,14 +12,18 @@
 #define PAGE_SIZE 0x1000
 #define ROUND_UP(x,y) ((x) % (y) == 0 ? (x) : (x) + ((y) - (x) % (y)))
 
+// Mutex lock to be used
 pthread_mutex_t lock;
 
 /// The number of times we've seen each letter in the input, initially zero
 size_t letter_counts[26] = {0};
 
+// The function the thread will run on, takes the string segment to be counted by this thread
 void *thread_count(void* file_data){
+    // for each letter in the string segment...
     for(size_t i = 0; i < strlen((char*) file_data); i++){
         char c = ((char*)file_data)[i];
+        // if cases to make this case insensitive -  use the lock to access shared resources and increment counter
         if (c >= 'a' && c <= 'z'){
             int rc = pthread_mutex_lock(&lock);
             assert(rc == 0);
@@ -49,14 +53,15 @@ void *thread_count(void* file_data){
  * \param file_size     The number of bytes in the file_data array
  */
 void count_letters(int num_threads, char* file_data, off_t file_size) {
-    // TODO: Implement this function. You will have to write at least one
-    //       other function to run in each of your threads
-
+    // get a rough count of characters each thread should process and initialize a count so far variable to keep track of how many characters we've read
     off_t roughCount = (off_t) file_size /  num_threads;
     off_t countSoFar = 0;
-    pthread_mutex_init(&lock, NULL);
 
+    // Initialize the mutex lock and the list of threads
+    pthread_mutex_init(&lock, NULL);
     pthread_t threadList[num_threads];
+
+    // For each thread, calculate the string segement to be counted and then pass it to the thread count function
     for (int i = 0; i < num_threads; i++){
         off_t threadReadSize;
         if (i == (num_threads - 1)){
@@ -67,10 +72,13 @@ void count_letters(int num_threads, char* file_data, off_t file_size) {
         char* temp  = file_data;
         temp = temp + countSoFar;
         char* file_data = strndup(temp, threadReadSize);
+
+        // Create the thread with the string segment
         int rc = pthread_create(&threadList[i], NULL, thread_count, (void*) file_data);
         assert(rc == 0);
         countSoFar = countSoFar + threadReadSize;
     }
+    // Join the thread at the end to ensure completion
     for (int i = 0; i < num_threads; i++){
         int rc = pthread_join(threadList[i], NULL);
         assert(rc == 0);
