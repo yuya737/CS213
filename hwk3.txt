@@ -1,0 +1,8 @@
+1. Deadlock is possile for C, not for the rest
+2. Case 1: Yes - if T1 acquires L2 and context switches to T2 which acquires L1, we would have a deadlock.
+   Case 2: No
+   Case 3: Yes - if T1 acquires L1, T2 acquires L2 and T3 acquires L3, we would have a deadlock
+3. True
+4. b
+5. Instead of polling the status of the device while the I/O runs, if we issue an interrupt when I/O starts and ends, we can run another process while the I/O is happening in another part of the system.
+6. a
