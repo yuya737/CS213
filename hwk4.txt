@@ -1,0 +1,10 @@
+1. Dynamic partitioning can achieve better utilization by allocation resources to users that demand more since it can be more flexible, offering varying amount of resources depending on the need.
+2. File name
+3. i. b
+   ii. 7
+4. b
+5. i. c
+   ii. a
+6. i. b
+   ii. d
+   iii. c
