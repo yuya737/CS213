@@ -8,6 +8,9 @@
 #include "socket.h"
 #include "ui.h"
 
+// Max number of characters to send/receive
+#define MAXCHARS 256
+
 
 // Struct to hold socket informaton
 typedef struct node{
@@ -46,6 +49,19 @@ void destroy(){
             free(cur);
             cur = trailNode->next;
         }
+    }
+}
+
+
+void* acceptConnection(void* server_socket_fd){
+    while(1){
+        int client_socket_fd = server_socket_accept(*((int*)server_socket_fd));
+        if(client_socket_fd == -1) {
+            perror("accept failed");
+            exit(2);
+        }
+        printf("Client connected!\n");
+        add(client_socket_fd);
     }
 }
 
@@ -96,7 +112,7 @@ int main(int argc, char** argv) {
 
         // TODO: Connect to another peer in the chat network
 
-        int socket_fd = socket_connect(peer_hostname, peer_short);
+        int socket_fd = socket_connect(peer_hostname, peer_port);
         if (socket_fd == -1){
             perror("Failed to connect");
             exit(2);
@@ -104,10 +120,10 @@ int main(int argc, char** argv) {
     } else {
         // This is the central peer
         central = true;
-        int client_socker_fd =  server_socket_accept(server_socker_fd);
-        if (client_socket_fd == -1){
-            perror("accept failed");
-            exit(2);
+        pthread_t thread;
+        if (pthread_create(&thread, NULL, acceptConnection, (void*) &server_socket_fd)){
+            perror("pthread_create failed");
+            exit(EXIT_FAILURE);
         }
 
     }
