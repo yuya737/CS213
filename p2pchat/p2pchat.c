@@ -1,5 +1,6 @@
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +13,7 @@
 #include "ui.h"
 
 // Citations:
-// https://www.linuxtoday.com/blog/blocking-and-non-blocking-i-0.html
+// https://www.linuxquestions.org/questions/programming-9/how-to-check-if-a-socket-is-valid-in-c-494523/
 
 // Max number of characters to send/receive
 #define MAXCHARS 256
@@ -29,7 +30,14 @@ typedef struct node {
 const char *username;
 node_t *list = NULL;
 int centralSocketID;
+int socketID;
 bool central;
+bool pipeClosed = false;
+
+void sigpipe_handler() {
+  printf("SIGPIPE caught\n");
+  pipeClosed = true;
+}
 
 void add(int socket) {
   pthread_mutex_lock(&listLock);
@@ -45,15 +53,45 @@ void add(int socket) {
   pthread_mutex_unlock(&listLock);
 }
 
+void delete (int socket) {
+  // pthread_mutex_lock(&listLock);
+  node_t *cur = list;
+  node_t *trailNode;
+
+  // If the node of interest is the head then delete the head and return
+  if (cur != NULL && cur->socket == socket) {
+    list = list->next;
+    free(cur);
+    // pthread_mutex_unlock(&listLock);
+    return;
+  }
+
+  while (cur != NULL) {
+    if (cur->socket == socket) {
+      trailNode->next = cur->next;
+      free(cur);
+      // pthread_mutex_unlock(&listLock);
+      return;
+    }
+    trailNode = cur;
+    cur = cur->next;
+  }
+  // pthread_mutex_unlock(&listLock);
+  return;
+}
+
 void destroy() {
+  pthread_mutex_lock(&listLock);
   if (list != NULL) {
     node_t *cur = list;
     while (cur != NULL) {
       node_t *trailNode = cur;
-      cur = trailNode->next;
+      close(cur->socket);
+      cur = cur->next;
       free(trailNode);
     }
   }
+  pthread_mutex_unlock(&listLock);
 }
 
 void *acceptConnection(void *server_socket_fd) {
@@ -80,18 +118,89 @@ typedef struct arguments {
   int centralSocketId;
 } arg_t;
 
-void *thread_RecieveDisplay(void *arg) {
-  arg_t *arguments = (arg_t *)arg;
-  int i = 0;
-  while (1) {
-    if (list == NULL) {
+void broadcastMessage(int socketFrom, const char *username,
+                      const char *message) {
+  node_t *cur = list;
+  while (cur != NULL) {
+    int socket = cur->socket;
+    if (socket == socketFrom) {
+      cur = cur->next;
       continue;
     }
+    data_t dataSize;
+    dataSize.usernameLength = (int)strlen(username);
+    dataSize.messageLength = (int)strlen(message);
+
+    int writeError = write(socket, &dataSize, sizeof(data_t));
+    if (writeError < 0) {
+      perror("write datasize error to broadcast");
+    }
+
+    writeError = write(socket, username, (int)strlen(username));
+    if (writeError < 0) {
+      perror("write username error to broadcast");
+    }
+
+    writeError = write(socket, message, (int)strlen(message));
+    if (writeError < 0) {
+      perror("write message error to broadcast");
+    }
+    cur = cur->next;
+  }
+}
+
+void *thread_ReceiveBroadcast(void *args) {
+  while (1) {
+    data_t dataSize;
+    int readError = read(centralSocketID, &dataSize, sizeof(data_t));
+
+    if (readError < 0) {
+      perror("read dataSize error in broadcast thread");
+    }
+
+    char username[dataSize.usernameLength + 1];
+    char message[dataSize.messageLength + 1];
+
+    readError = read(centralSocketID, username, dataSize.usernameLength);
+    if (readError < 0) {
+      perror("read username error in broadcast thread");
+    }
+
+    readError = read(centralSocketID, message, dataSize.usernameLength);
+    if (readError < 0) {
+      perror("read username error in broadcast thread");
+    }
+    username[dataSize.usernameLength] = '\0';
+    message[dataSize.messageLength] = '\0';
+
+    ui_display(username, message);
+  }
+  return NULL;
+}
+
+/**
+ * @brief  Function that runs on the central per to receive message from other
+ * peers
+ * @note
+ * @param  *arg:
+ * @retval None
+ */
+void *thread_RecieveAndDisplay(void *arg) {
+  while (1) {
+    pthread_mutex_lock(&listLock);
+    if (list == NULL) {
+      pthread_mutex_unlock(&listLock);
+      continue;
+    }
+
+    // initiaize fields needed to listen and detect username/message combination
     fd_set readFDs;
     FD_ZERO(&readFDs);
+
     int maxFD = list->socket;
     node_t *cur = list;
-    pthread_mutex_lock(&listLock);
+
+    // traverse through the linked list add to FD_SET to check for input
     while (cur != NULL) {
       int socket = cur->socket;
       if (socket > maxFD)
@@ -99,14 +208,26 @@ void *thread_RecieveDisplay(void *arg) {
       FD_SET(socket, &readFDs);
       cur = cur->next;
     }
-    pthread_mutex_unlock(&listLock);
-    int rc = select(maxFD + 1, &readFDs, NULL, NULL, NULL);
+
+    // lock the list and call select to check for input set timeout to 0 so it
+    // doesn't block
+    struct timeval time;
+    time.tv_sec = 0;
+    time.tv_usec = 0;
+    int rc = select(maxFD + 1, &readFDs, NULL, NULL, &time);
+    if (rc <= 0) {
+      pthread_mutex_unlock(&listLock);
+      continue;
+    }
 
     int fd;
     cur = list;
-    pthread_mutex_lock(&listLock);
+
     while (cur != NULL) {
+
+      // traverse the linked list again to check which fd has input available
       if (FD_ISSET(cur->socket, &readFDs)) {
+
         data_t dataSize;
         int readError = read(cur->socket, &dataSize, sizeof(data_t));
         if (readError < 0) {
@@ -127,33 +248,34 @@ void *thread_RecieveDisplay(void *arg) {
 
         username[dataSize.usernameLength] = '\0';
         message[dataSize.messageLength] = '\0';
+
+        if (strcmp(message, ":quit") == 0 || strcmp(message, ":q") == 0) {
+          node_t *temp = cur->next;
+          delete (cur->socket);
+          pthread_mutex_unlock(&listLock);
+          cur = temp;
+          continue;
+        }
+
         ui_display(username, message);
+        broadcastMessage(cur->socket, username, message);
       }
       cur = cur->next;
+      pthread_mutex_unlock(&listLock);
     }
-    pthread_mutex_unlock(&listLock);
   }
 }
 
 // This function is run whenever the user hits enter after typing a message
 void input_callback(const char *message) {
-  if (strcmp(message, ":quit") == 0 || strcmp(message, ":q") == 0) {
-    ui_exit();
-  } else {
-    ui_display(username, message);
-  }
   if (!central) {
-    int i = pthread_mutex_lock(&lock);
-    if (i < 0) {
-      perror("locking error");
-    }
+
     data_t dataSize;
-    // printf("%s, %s\n", username, message);
-    // printf("%d, %d\n", (int)strlen(username), (int)strlen(message));
+
     dataSize.usernameLength = (int)strlen(username);
     dataSize.messageLength = (int)strlen(message);
 
-    i = write(centralSocketID, &dataSize, sizeof(data_t));
+    int i = write(centralSocketID, &dataSize, sizeof(data_t));
     if (i < 0) {
       perror("write datasize error");
     }
@@ -166,14 +288,21 @@ void input_callback(const char *message) {
     if (i < 0) {
       perror("write message error");
     }
-    i = pthread_mutex_unlock(&lock);
-    if (i < 0) {
-      perror("unlocking error");
-    }
+
+  } else {
+    broadcastMessage(centralSocketID, username, message);
+  }
+  if (strcmp(message, ":quit") == 0 || strcmp(message, ":q") == 0) {
+    ui_exit();
+  } else {
+    ui_display(username, message);
   }
 }
 
 int main(int argc, char **argv) {
+
+  // signal(SIGPIPE, sigpipe_handler);
+
   // Make sure the arguments include a username
   if (argc != 2 && argc != 4) {
     fprintf(stderr, "Usage: %s <username> [<peer> <port number>]\n", argv[0]);
@@ -209,6 +338,8 @@ int main(int argc, char **argv) {
 
   printf("listening on port %u\n", port);
 
+  int socket_fd;
+
   // Did the user specify a peer we should connect to?
   if (argc == 4) {
     // Unpack arguments
@@ -219,7 +350,7 @@ int main(int argc, char **argv) {
 
     // TODO: Connect to another peer in the chat network
 
-    int socket_fd = socket_connect(peer_hostname, peer_port);
+    socket_fd = socket_connect(peer_hostname, peer_port);
     if (socket_fd == -1) {
       perror("Failed to connect");
       exit(2);
@@ -247,10 +378,16 @@ int main(int argc, char **argv) {
   sprintf(temp, "listening on port %u\n", port);
   ui_display(temp, "");
 
+  pthread_t thread;
+
   if (central) {
-    pthread_t thread1;
-    if (pthread_create(&thread1, NULL, thread_RecieveDisplay, NULL)) {
+    if (pthread_create(&thread, NULL, thread_RecieveAndDisplay, NULL)) {
       perror("pthread_create failed");
+      exit(EXIT_FAILURE);
+    }
+  } else {
+    if (pthread_create(&thread, NULL, thread_ReceiveBroadcast, NULL)) {
+      perror("pthread create failed");
       exit(EXIT_FAILURE);
     }
   }
@@ -258,6 +395,14 @@ int main(int argc, char **argv) {
   // Run the UI loop. This function only returns once we call ui_stop()
   // somewhere in the program.
   ui_run();
+
+  if (!central)
+    close(socket_fd);
+  else
+    close(centralSocketID);
+
+  close(server_socket_fd);
+  pthread_kill(thread, 0);
 
   destroy();
   return 0;
